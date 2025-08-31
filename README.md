@@ -1,22 +1,27 @@
-# Mermaid Parser Project
+# Hybrid Mode Test Project
 
-A web-based Mermaid diagram editor with live preview and self-healing capabilities.
+This project demonstrates hybrid execution with dependencies.
 
 ## Features
-
-- Live preview of Mermaid diagrams
-- Self-healing capabilities for diagram parsing
-- Web-based interface for easy diagram creation and editing
+- Express server with multiple endpoints
+- Modular architecture
+- Configuration management
+- Test suite
+- API documentation
 
 ## Installation
-
-1. Clone the repository
-2. Install dependencies
-3. Start the development server
+```bash
+npm install
+```
 
 ## Usage
+```bash
+npm start
+```
 
-1. Open the web interface
-2. Write your Mermaid diagram syntax in the editor
-3. View the live preview of your diagram
-4. Utilize self-healing features for automatic error correction
+## Testing
+```bash
+npm test
+```
+
+Created with Phase 3.5 Hybrid Mode
