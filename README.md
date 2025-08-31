@@ -5,18 +5,30 @@ A web-based Mermaid diagram editor with live preview and self-healing capabiliti
 ## Features
 
 - Live preview of Mermaid diagrams
-- Self-healing capabilities for diagram parsing
-- Web-based interface for easy diagram creation and editing
+- Self-healing capabilities for diagram syntax
+- Web-based interface for easy accessibility
+- Real-time editing and rendering
 
 ## Installation
 
-1. Clone the repository
-2. Install dependencies
-3. Start the development server
+```bash
+# Clone the repository
+git clone <repository-url>
+cd mermaid-parser-project
+
+# Install dependencies
+npm install
+```
 
 ## Usage
 
-1. Open the web interface
-2. Write your Mermaid diagram syntax in the editor
-3. View the live preview of your diagram
-4. Utilize self-healing features for automatic error correction
+1. Start the development server:
+   ```bash
+   npm start
+   ```
+
+2. Open your browser and navigate to `http://localhost:3000`
+
+3. Begin creating and editing Mermaid diagrams with live preview
+
+4. The self-healing feature will automatically detect and suggest fixes for syntax errors
