@@ -12,6 +12,7 @@
     "resolveJsonModule": true,
     "declaration": true,
     "declarationMap": true,
+<<<<<<< HEAD
     "sourceMap": true,
     "removeComments": true,
     "noImplicitAny": true,
@@ -24,4 +25,10 @@
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "**/*.test.ts"]
+=======
+    "sourceMap": true
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "coverage"]
+>>>>>>> fix-setup-testing-1756912222
 }
