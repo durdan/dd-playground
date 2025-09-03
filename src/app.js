@@ -1,28 +1,17 @@
 const express = require('express');
-const { errorHandler, notFoundHandler } = require('./middleware/errorMiddleware');
-const exampleRoutes = require('./routes/exampleRoutes');
+const { requestLogger } = require('./middleware/logging');
+const userRoutes = require('./routes/users');
 
 const app = express();
 
-// Middleware
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(requestLogger);
+app.use('/users', userRoutes);
 
-// Routes
-app.use('/api', exampleRoutes);
-
-// Handle unhandled routes (must be after all other routes)
-app.use(notFoundHandler);
-
-// Global error handler (must be last middleware)
-app.use(errorHandler);
-
-const PORT = process.env.PORT || 3000;
-
-if (require.main === module) {
-  app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-  });
-}
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ error: 'Something went wrong!' });
+});
 
 module.exports = app;
