@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Navigation Tests</title>
+    <style>
+        .test-results { margin: 20px; font-family: monospace; }
+        .test-pass { color: green; }
+        .test-fail { color: red; }
+    </style>
+</head>
+<body>
+    <div id="test-container">
+        <header class="header">
+            <nav class="nav">
+                <div class="nav__brand">
+                    <a href="#" class="nav__logo">Logo</a>
+                </div>
+                <button class="nav__toggle" aria-label="Toggle navigation" aria-expanded="false">
+                    <span class="nav__toggle-bar"></span>
+                    <span class="nav__toggle-bar"></span>
+                    <span class="nav__toggle-bar"></span>
+                </button>
+                <ul class="nav__menu">
+                    <li class="nav__item"><a href="#" class="nav__link">Home</a></li>
+                    <li class="nav__item"><a href="#" class="nav__link">About</a></li>
+                </ul>
+            </nav>
+        </header>
+    </div>
+    
+    <div class="test-results" id="results"></div>
+    
+    <script src="script.js"></script>
+    <script>
+        // Simple test framework
+        class TestRunner {
+            constructor() {
+                this.results = [];
+                this.nav = null;
+            }
+            
+            async runTests() {
+                // Wait for navigation to initialize
+                await new Promise(resolve => setTimeout(resolve, 100));
+                this.nav = document.querySelector('.nav__toggle');
+                
+                this.test('Navigation elements exist', () => {
+                    const toggle = document.querySelector('.nav__toggle');
+                    const menu = document.querySelector('.nav__menu');
+                    return toggle && menu;
+                });
+                
+                this.test('Menu starts closed', () => {
+                    const menu = document.querySelector('.nav__menu');
+                    return !menu.classList.contains('nav__menu--open');
+                });
+                
+                this.test('Toggle opens menu', () => {
+                    const toggle = document.querySelector('.nav__toggle');
+                    const menu = document.querySelector('.nav__menu');
+                    
+                    toggle.click();
+                    return menu.classList.contains('nav__menu--open') && 
+                           toggle.getAttribute('aria-expanded') === 'true';
+                });
+                
+                this.test('Toggle closes menu', () => {
+                    const toggle = document.querySelector('.nav__toggle');
+                    const menu = document.querySelector('.nav__menu');
+                    
+                    toggle.click(); // Close it
+                    return !menu.classList.contains('nav__menu--open') && 
+                           toggle.getAttribute('aria-expanded') === 'false';
+                });
+                
+                this.test('Escape key closes menu', () => {
+                    const toggle = document.querySelector('.nav__toggle');
+                    const menu = document.querySelector('.nav__menu');
+                    
+                    toggle.click(); // Open
+                    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+                    
+                    return !menu.classList.contains('nav__menu--open');
+                });
+                
+                this.displayResults();
+            }
+            
+            test(name, testFn) {
+                try {
+                    const result = testFn();
+                    this.results.push({ name, passed: result });
+                } catch (error) {
+                    this.results.push({ name, passed: false, error: error.message });
+                }
+            }
+            
+            displayResults() {
+                const resultsDiv = document.getElementById('results');
+                const passed = this.results.filter(r => r.passed).length;
+                const total = this.results.length;
+                
+                let html = `<h3>Test Results: ${passed}/${total} passed</h3>`;
+                
+                this.results.forEach(result => {
+                    const className = result.passed ? 'test-pass' : 'test-fail';
+                    const status = result.passed ? '✓' : '✗';
+                    html += `<div class="${className}">${status} ${result.name}</div>`;
+                    if (result.error) {
+                        html += `<div style="margin-left: 20px; color: #666;">Error: ${result.error}</div>`;
+                    }
+                });
+                
+                resultsDiv.innerHTML = html;
+            }
+        }
+        
+        // Run tests when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            const testRunner = new TestRunner();
+            testRunner.runTests();
+        });
+    </script>
+</body>
+</html>
