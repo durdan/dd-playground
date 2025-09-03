@@ -1,17 +1,12 @@
 {
-  "name": "auth-routes",
+  "name": "user-crud-api",
   "version": "1.0.0",
+  "type": "module",
   "scripts": {
-    "start": "node server.js",
-    "test": "jest"
+    "start": "node src/app.js",
+    "test": "node --test"
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "bcrypt": "^5.1.0",
-    "jsonwebtoken": "^9.0.0"
-  },
-  "devDependencies": {
-    "jest": "^29.5.0",
-    "supertest": "^6.3.3"
+    "express": "^4.18.2"
   }
 }
