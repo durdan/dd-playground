@@ -9,26 +9,38 @@ class User:
     password_hash: str
     id: Optional[int] = None
     created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
     
     def __post_init__(self):
-        self.validate()
+        if self.created_at is None:
+            self.created_at = datetime.utcnow()
+
+class UserValidationError(Exception):
+    pass
+
+class UserValidator:
+    EMAIL_PATTERN = re.compile(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
     
-    def validate(self):
-        """Validate user data"""
-        if not self.email or not isinstance(self.email, str):
-            raise ValueError("Email is required and must be a string")
+    @staticmethod
+    def validate_email(email: str) -> None:
+        if not email or not isinstance(email, str):
+            raise UserValidationError("Email is required")
         
-        if not self._is_valid_email(self.email):
-            raise ValueError("Invalid email format")
-        
-        if not self.password_hash or not isinstance(self.password_hash, str):
-            raise ValueError("Password hash is required and must be a string")
-        
-        if len(self.password_hash) < 8:
-            raise ValueError("Password hash too short")
+        if not UserValidator.EMAIL_PATTERN.match(email):
+            raise UserValidationError("Invalid email format")
     
-    def _is_valid_email(self, email: str) -> bool:
-        """Basic email validation"""
-        pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-        return re.match(pattern, email) is not None
+    @staticmethod
+    def validate_password(password: str) -> None:
+        if not password or not isinstance(password, str):
+            raise UserValidationError("Password is required")
+        
+        if len(password) < 8:
+            raise UserValidationError("Password must be at least 8 characters")
+        
+        if not any(c.isupper() for c in password):
+            raise UserValidationError("Password must contain at least one uppercase letter")
+        
+        if not any(c.islower() for c in password):
+            raise UserValidationError("Password must contain at least one lowercase letter")
+        
+        if not any(c.isdigit() for c in password):
+            raise UserValidationError("Password must contain at least one digit")
