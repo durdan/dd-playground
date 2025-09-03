@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Navigation Tests</title>
+    <style>
+        .test-results { margin: 20px; font-family: monospace; }
+        .test-pass { color: green; }
+        .test-fail { color: red; }
+    </style>
+</head>
+<body>
+    <!-- Include the navigation HTML here -->
+    <header class="header">
+        <nav class="nav">
+            <div class="nav__brand">
+                <a href="#" class="nav__logo">Logo</a>
+            </div>
+            <button class="nav__toggle" aria-label="Toggle navigation" aria-expanded="false">
+                <span class="nav__toggle-bar"></span>
+                <span class="nav__toggle-bar"></span>
+                <span class="nav__toggle-bar"></span>
+            </button>
+            <ul class="nav__menu">
+                <li class="nav__item"><a href="#" class="nav__link">Home</a></li>
+                <li class="nav__item"><a href="#" class="nav__link">About</a></li>
+            </ul>
+        </nav>
+    </header>
+    
+    <div class="test-results" id="test-results"></div>
+    
+    <link rel="stylesheet" href="styles.css">
+    <script src="script.js"></script>
+    <script>
+        // Simple test framework
+        class TestRunner {
+            constructor() {
+                this.results = [];
+                this.resultsContainer = document.getElementById('test-results');
+            }
+            
+            test(name, testFn) {
+                try {
+                    testFn();
+                    this.results.push({ name, status: 'PASS' });
+                } catch (error) {
+                    this.results.push({ name, status: 'FAIL', error: error.message });
+                }
+            }
+            
+            assert(condition, message) {
+                if (!condition) {
+                    throw new Error(message);
+                }
+            }
+            
+            run() {
+                // Wait for navigation to initialize
+                setTimeout(() => {
+                    this.runTests();
+                    this.displayResults();
+                }, 100);
+            }
+            
+            runTests() {
+                const nav = document.querySelector('.nav');
+                const toggle = document.querySelector('.nav__toggle');
+                const menu = document.querySelector('.nav__menu');
+                
+                this.test('Navigation elements exist', () => {
+                    this.assert(nav, 'Navigation container should exist');
+                    this.assert(toggle, 'Toggle button should exist');
+                    this.assert(menu, 'Menu should exist');
+                });
+                
+                this.test('Initial state is correct', () => {
+                    this.assert(!menu.classList.contains('nav__menu--open'), 'Menu should be closed initially');
+                    this.assert(toggle.getAttribute('aria-expanded') === 'false', 'Toggle should have aria-expanded="false"');
+                });
+                
+                this.test('Toggle opens menu', () => {
+                    toggle.click();
+                    this.assert(menu.classList.contains('nav__menu--open'), 'Menu should open when toggle is clicked');
+                    this.assert(toggle.getAttribute('aria-expanded') === 'true', 'Toggle should have aria-expanded="true"');
+                });
+                
+                this.test('Toggle closes menu', () => {
+                    toggle.click(); // Close it
+                    this.assert(!menu.classList.contains('nav__menu--open'), 'Menu should close when toggle is clicked again');
+                    this.assert(toggle.getAttribute('aria-expanded') === 'false', 'Toggle should have aria-expanded="false"');
+                });
+                
+                this.test('Menu closes when link is clicked', () => {
+                    toggle.click(); // Open menu
+                    const firstLink = menu.querySelector('.nav__link');
+                    firstLink.click();
+                    this.assert(!menu.classList.contains('nav__menu--open'), 'Menu should close when link is clicked');
+                });
+            }
+            
+            displayResults() {
+                const html = this.results.map(result => {
+                    const className = result.status === 'PASS' ? 'test-pass' : 'test-fail';
+                    const error = result.error ? ` - ${result.error}` : '';
+                    return `<div class="${className}">${result.status}: ${result.name}${error}</div>`;
+                }).join('');
+                
+                this.resultsContainer.innerHTML = html;
+            }
+        }
+        
+        // Run tests when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            const testRunner = new TestRunner();
+            testRunner.run();
+        });
+    </script>
+</body>
+</html>
