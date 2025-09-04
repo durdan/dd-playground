@@ -1,36 +1,34 @@
-from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any
+from dataclasses import dataclass
+from typing import List, Dict, Any, Optional
 from enum import Enum
 
-class ValidationStatus(str, Enum):
-    PASSED = "passed"
-    FAILED = "failed"
-    WARNING = "warning"
+class TestType(Enum):
+    UNIT = "unit"
+    INTEGRATION = "integration"
+    EDGE_CASE = "edge_case"
+    PERFORMANCE = "performance"
 
-class TaskType(str, Enum):
-    FEATURE = "feature"
-    BUGFIX = "bugfix"
-    REFACTOR = "refactor"
-    SECURITY = "security"
+class Priority(Enum):
+    LOW = 1
+    MEDIUM = 2
+    HIGH = 3
+    CRITICAL = 4
 
-class Task(BaseModel):
-    id: str
-    title: str
-    description: str
-    task_type: TaskType
-    requirements: List[str] = Field(default_factory=list)
-    proposed_solution: Optional[str] = None
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+@dataclass
+class TestSpecification:
+    """Specification for test generation"""
+    module_name: str
+    source_code: str
+    framework: str = "pytest"
+    coverage_target: float = 0.8
+    include_edge_cases: bool = True
+    include_performance_tests: bool = False
 
-class ValidationResult(BaseModel):
-    agent_name: str
-    status: ValidationStatus
-    message: str
-    details: Dict[str, Any] = Field(default_factory=dict)
-    suggestions: List[str] = Field(default_factory=list)
-
-class VerificationReport(BaseModel):
-    task_id: str
-    overall_status: ValidationStatus
-    results: List[ValidationResult]
-    final_recommendations: List[str] = Field(default_factory=list)
+@dataclass
+class GenerationResult:
+    """Result of test generation process"""
+    test_suite: 'TestSuite'
+    coverage_estimate: float
+    generation_time: float
+    warnings: List[str]
+    success: bool
