@@ -1,20 +1,17 @@
 {
-  "name": "mongodb-mongoose-setup",
+  "name": "jest-typescript-setup",
   "version": "1.0.0",
-  "description": "MongoDB connection with Mongoose and User schema",
-  "main": "index.js",
+  "description": "Jest with TypeScript configuration",
   "scripts": {
-    "start": "node index.js",
     "test": "jest",
-    "dev": "nodemon index.js"
-  },
-  "dependencies": {
-    "mongoose": "^7.0.0",
-    "dotenv": "^16.0.0"
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
   },
   "devDependencies": {
-    "jest": "^29.0.0",
-    "mongodb-memory-server": "^8.12.0",
-    "nodemon": "^2.0.0"
+    "@types/jest": "^29.5.0",
+    "@types/node": "^18.15.0",
+    "jest": "^29.5.0",
+    "ts-jest": "^29.1.0",
+    "typescript": "^5.0.0"
   }
 }
