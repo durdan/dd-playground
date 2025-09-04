@@ -1,41 +1,58 @@
 #!/usr/bin/env python3
-import argparse
-import sys
-from ci_workflow import CIWorkflow
-from workflow_config import WorkflowConfig
+from sandbox_repository import SandboxRepository
+from sandbox_service import SandboxService
+from sandbox_controller import SandboxController
+from sandbox_mode import Operation, OperationType
 
 def main():
-    parser = argparse.ArgumentParser(description="CI Workflow with Docker and GitHub PR")
-    parser.add_argument("--config", help="Path to config file")
-    parser.add_argument("--branch", required=True, help="Branch name for PR")
-    parser.add_argument("--title", required=True, help="PR title")
-    parser.add_argument("--build-only", action="store_true", help="Only run build")
-    parser.add_argument("--test-only", action="store_true", help="Only run tests")
+    # Setup
+    repo = SandboxRepository("demo_sandbox.json")
+    service = SandboxService(repo)
+    controller = SandboxController(service)
     
-    args = parser.parse_args()
+    print("=== Sandbox Mode Demo ===")
     
-    try:
-        # Load configuration
-        if args.config:
-            config = WorkflowConfig.from_file(args.config)
-        else:
-            config = WorkflowConfig.from_env()
+    # Show initial status
+    status = controller.get_status()
+    print(f"Initial sandbox status: {'ON' if status['sandbox_enabled'] else 'OFF'}")
+    
+    # Toggle sandbox on
+    result = controller.toggle_sandbox()
+    print(f"\n{result['message']}")
+    
+    # Try some operations
+    operations = [
+        {'type': 'read', 'target': 'config.txt', 'description': 'Read config file'},
+        {'type': 'write', 'target': 'data.txt', 'description': 'Write user data'},
+        {'type': 'delete', 'target': 'temp.log', 'description': 'Delete temp file'}
+    ]
+    
+    print("\n=== Testing Operations ===")
+    for op_data in operations:
+        result = controller.execute_operation(op_data)
+        print(f"\nOperation: {op_data['type']} {op_data['target']}")
         
-        workflow = CIWorkflow(config)
-        
-        if args.build_only:
-            result = workflow.run_build()
-            sys.exit(0 if result.success else 1)
-        elif args.test_only:
-            result = workflow.run_tests()
-            sys.exit(0 if result.success else 1)
+        if result['success']:
+            print(f"✓ {result['message']}")
+        elif result.get('blocked'):
+            print(f"✗ Blocked: {result['suggestion']['explanation']}")
+            print(f"  Suggestion: {result['suggestion']['alternative']}")
         else:
-            success = workflow.run_full_workflow(args.branch, args.title)
-            sys.exit(0 if success else 1)
-            
-    except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
-        sys.exit(1)
+            print(f"✗ Error: {result['error']}")
+    
+    # Toggle sandbox off
+    print("\n" + "="*30)
+    result = controller.toggle_sandbox()
+    print(f"{result['message']}")
+    
+    # Try write operation again
+    write_op = {'type': 'write', 'target': 'data.txt', 'description': 'Write user data'}
+    result = controller.execute_operation(write_op)
+    print(f"\nRetrying write operation:")
+    print(f"✓ {result['message']}" if result['success'] else f"✗ {result['error']}")
+    
+    # Cleanup
+    repo.clear_config()
 
 if __name__ == "__main__":
     main()
