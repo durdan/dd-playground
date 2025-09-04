@@ -1,0 +1,31 @@
+environments:
+  staging:
+    cluster: staging-k8s
+    namespace: app-staging
+    replicas: 2
+    auto_deploy: true
+    health_check_timeout: 300
+  production:
+    cluster: prod-k8s
+    namespace: app-prod
+    replicas: 5
+    auto_deploy: false
+    health_check_timeout: 600
+
+pr_automation:
+  required_checks:
+    - unit_tests
+    - integration_tests
+    - security_scan
+    - code_quality
+  auto_merge:
+    enabled: true
+    required_approvals: 2
+    dismiss_stale_reviews: true
+
+notifications:
+  slack:
+    webhook_url: "${SLACK_WEBHOOK_URL}"
+    channels:
+      staging: "#staging-deploys"
+      production: "#production-deploys"
