@@ -1,42 +1,46 @@
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from enum import Enum
-from dataclasses import dataclass
-from datetime import datetime
-from typing import List, Optional
+from typing import Dict, Any, List, Optional
+import uuid
 
-class FeatureStatus(Enum):
-    INTAKE = "intake"
-    IN_DEVELOPMENT = "in_development"
-    IN_TESTING = "in_testing"
-    READY_FOR_RELEASE = "ready_for_release"
-    RELEASED = "released"
+class ApprovalStatus(Enum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    EXPIRED = "expired"
 
-class Priority(Enum):
+class RiskLevel(Enum):
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
     CRITICAL = "critical"
 
 @dataclass
-class Feature:
-    id: str
-    title: str
-    description: str
-    priority: Priority
-    status: FeatureStatus
-    created_at: datetime
-    updated_at: datetime
-    assignee: Optional[str] = None
-    estimated_hours: Optional[int] = None
-    
-    def update_status(self, new_status: FeatureStatus):
-        self.status = new_status
-        self.updated_at = datetime.now()
+class HumanApprovalRequest:
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    operation_type: str = ""
+    description: str = ""
+    risk_level: RiskLevel = RiskLevel.LOW
+    context: Dict[str, Any] = field(default_factory=dict)
+    requested_at: datetime = field(default_factory=datetime.now)
+    expires_at: datetime = field(default_factory=lambda: datetime.now() + timedelta(hours=24))
+    status: ApprovalStatus = ApprovalStatus.PENDING
+    approved_by: Optional[str] = None
+    rejection_reason: Optional[str] = None
 
 @dataclass
-class Release:
-    id: str
-    version: str
-    features: List[str]  # feature IDs
-    created_at: datetime
-    target_date: Optional[datetime] = None
-    is_ready: bool = False
+class SafetyRule:
+    name: str
+    max_value: float
+    metric_key: str
+    description: str = ""
+
+@dataclass
+class OperationResult:
+    success: bool
+    operation_id: str
+    message: str
+    requires_approval: bool = False
+    approval_request_id: Optional[str] = None
+    safety_violations: List[str] = field(default_factory=list)
