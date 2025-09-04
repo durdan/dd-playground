@@ -1,37 +1,54 @@
-from pydantic import BaseModel
-from typing import List, Optional, Dict, Any
+from dataclasses import dataclass
+from typing import List, Dict, Any, Optional
 from enum import Enum
 
-class TaskStatus(str, Enum):
+class ReviewStatus(Enum):
     PENDING = "pending"
-    IN_PROGRESS = "in_progress"
-    COMPLETED = "completed"
+    APPROVED = "approved"
+    CHANGES_REQUESTED = "changes_requested"
     FAILED = "failed"
 
-class AgentRole(str, Enum):
-    TASK_VERIFIER = "task_verifier"
-    CODE_REVIEWER = "code_reviewer"
-    TEST_GENERATOR = "test_generator"
+@dataclass
+class PRFile:
+    filename: str
+    additions: int
+    deletions: int
+    changes: int
+    patch: str
+    status: str
 
-class TaskRequest(BaseModel):
-    id: str
+@dataclass
+class PullRequest:
+    number: int
+    title: str
     description: str
-    code: Optional[str] = None
-    requirements: List[str] = []
-    context: Dict[str, Any] = {}
+    author: str
+    base_branch: str
+    head_branch: str
+    files: List[PRFile]
+    url: str
 
-class AgentResponse(BaseModel):
-    agent_role: AgentRole
-    status: TaskStatus
-    result: Dict[str, Any]
-    feedback: List[str] = []
-    suggestions: List[str] = []
-    errors: List[str] = []
+@dataclass
+class ReviewResult:
+    agent_name: str
+    score: float
+    comments: List[str]
+    suggestions: List[str]
+    issues: List[str]
+    
+    def is_passing(self, threshold: float) -> bool:
+        return self.score >= threshold
 
-class WorkflowResult(BaseModel):
-    task_id: str
-    status: TaskStatus
-    verification_result: Optional[AgentResponse] = None
-    review_result: Optional[AgentResponse] = None
-    test_result: Optional[AgentResponse] = None
-    final_output: Dict[str, Any] = {}
+@dataclass
+class QualityGateResult:
+    overall_score: float
+    status: ReviewStatus
+    agent_results: Dict[str, ReviewResult]
+    summary: str
+    action_items: List[str]
+    
+    def is_passing(self, config: 'QualityGateConfig') -> bool:
+        return (
+            self.overall_score >= config.min_overall_score and
+            self.status != ReviewStatus.FAILED
+        )
