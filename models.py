@@ -1,34 +1,26 @@
-from dataclasses import dataclass
-from typing import List, Dict, Any, Optional
+from pydantic import BaseModel
+from typing import List, Optional
 from enum import Enum
 
-class TestType(Enum):
-    UNIT = "unit"
-    INTEGRATION = "integration"
-    EDGE_CASE = "edge_case"
+class ReviewType(str, Enum):
+    SECURITY = "security"
+    QUALITY = "quality"
     PERFORMANCE = "performance"
 
-class Priority(Enum):
-    LOW = 1
-    MEDIUM = 2
-    HIGH = 3
-    CRITICAL = 4
+class Issue(BaseModel):
+    type: ReviewType
+    severity: str  # "low", "medium", "high", "critical"
+    line_number: Optional[int]
+    description: str
+    suggestion: str
 
-@dataclass
-class TestSpecification:
-    """Specification for test generation"""
-    module_name: str
-    source_code: str
-    framework: str = "pytest"
-    coverage_target: float = 0.8
-    include_edge_cases: bool = True
-    include_performance_tests: bool = False
+class ReviewResult(BaseModel):
+    file_path: str
+    issues: List[Issue]
+    overall_score: int  # 1-10
+    summary: str
 
-@dataclass
-class GenerationResult:
-    """Result of test generation process"""
-    test_suite: 'TestSuite'
-    coverage_estimate: float
-    generation_time: float
-    warnings: List[str]
-    success: bool
+class CodeReviewRequest(BaseModel):
+    file_path: str
+    code_content: str
+    review_types: List[ReviewType] = [ReviewType.SECURITY, ReviewType.QUALITY, ReviewType.PERFORMANCE]
