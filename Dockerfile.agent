@@ -1,0 +1,20 @@
+FROM python:3.11-slim
+
+# Create non-root user
+RUN useradd -m -u 1000 agent && \
+    mkdir -p /app/workspace && \
+    chown -R agent:agent /app
+
+# Install dependencies
+COPY requirements.txt /app/
+RUN pip install --no-cache-dir -r /app/requirements.txt
+
+# Set up workspace
+WORKDIR /app
+USER agent
+
+# Copy agent code
+COPY --chown=agent:agent agent_runtime.py /app/
+
+# Default command
+CMD ["python", "agent_runtime.py"]
