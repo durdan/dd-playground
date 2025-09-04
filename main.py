@@ -1,50 +1,47 @@
-import os
-import logging
-from config.settings import config
-from crews.base_crew import ContentCreationCrew
-
-
-def setup_logging():
-    """Configure logging based on environment settings."""
-    logging.basicConfig(
-        level=getattr(logging, config.log_level.upper()),
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
-
+from datetime import datetime, timedelta
+from workflow_engine import WorkflowEngine
 
 def main():
-    """Main application entry point."""
-    setup_logging()
-    logger = logging.getLogger(__name__)
+    engine = WorkflowEngine()
     
-    logger.info(f"Starting CrewAI application in {config.environment} environment")
+    print("=== MVP End-to-End Workflow Demo ===\n")
     
-    # Validate required configuration
-    if not config.openai_api_key or config.openai_api_key.startswith("your_"):
-        logger.error("OpenAI API key not configured properly")
-        return
+    # Demo 1: Complete end-to-end flow
+    print("1. Running complete end-to-end flow...")
+    result = engine.end_to_end_flow(
+        title="User Authentication",
+        description="Implement login and registration functionality",
+        priority="high",
+        version="v1.0.0",
+        assignee="john.doe",
+        estimated_hours=40
+    )
     
-    # Set OpenAI API key for CrewAI
-    os.environ["OPENAI_API_KEY"] = config.openai_api_key
+    print(f"✓ Feature created: {result['feature'].id}")
+    print(f"✓ Release prepared: {result['release'].id} ({result['release'].version})")
+    print(f"✓ Status: {result['status']}\n")
     
-    try:
-        # Example: Create and run a content creation crew
-        topic = "The Future of Artificial Intelligence"
-        crew = ContentCreationCrew(topic)
-        
-        logger.info(f"Executing crew for topic: {topic}")
-        result = crew.kickoff()
-        
-        logger.info("Crew execution completed successfully")
-        print("\n" + "="*50)
-        print("CREW EXECUTION RESULT:")
-        print("="*50)
-        print(result)
-        
-    except Exception as e:
-        logger.error(f"Error during crew execution: {e}")
-        raise
-
+    # Demo 2: Individual feature intake
+    print("2. Adding individual features...")
+    feature1 = engine.intake_service.submit_feature_request(
+        "Password Reset", "Allow users to reset forgotten passwords", "medium"
+    )
+    feature2 = engine.intake_service.submit_feature_request(
+        "Email Notifications", "Send email alerts for important events", "low"
+    )
+    
+    print(f"✓ Added feature: {feature1.id}")
+    print(f"✓ Added feature: {feature2.id}\n")
+    
+    # Demo 3: Pipeline status
+    print("3. Current pipeline status:")
+    status = engine.get_pipeline_status()
+    for status_name, count in status["features_by_status"].items():
+        print(f"   {status_name}: {count}")
+    print(f"   Total features: {status['total_features']}")
+    print(f"   Total releases: {status['total_releases']}\n")
+    
+    print("Demo completed successfully!")
 
 if __name__ == "__main__":
     main()
