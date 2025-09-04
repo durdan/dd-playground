@@ -1,54 +1,43 @@
 from dataclasses import dataclass
-from typing import List, Dict, Any, Optional
+from datetime import datetime, timedelta
 from enum import Enum
+from typing import List, Dict, Any, Optional
 
-class ReviewStatus(Enum):
-    PENDING = "pending"
-    APPROVED = "approved"
-    CHANGES_REQUESTED = "changes_requested"
-    FAILED = "failed"
+class PIIType(Enum):
+    EMAIL = "email"
+    SSN = "ssn"
+    PHONE = "phone"
+    CREDIT_CARD = "credit_card"
 
-@dataclass
-class PRFile:
-    filename: str
-    additions: int
-    deletions: int
-    changes: int
-    patch: str
-    status: str
+class AccessLevel(Enum):
+    READ = "read"
+    WRITE = "write"
+    ADMIN = "admin"
 
 @dataclass
-class PullRequest:
-    number: int
-    title: str
-    description: str
-    author: str
-    base_branch: str
-    head_branch: str
-    files: List[PRFile]
-    url: str
+class RedactionResult:
+    original_text: str
+    redacted_text: str
+    pii_found: List[PIIType]
+    redaction_count: int
 
 @dataclass
-class ReviewResult:
-    agent_name: str
-    score: float
-    comments: List[str]
-    suggestions: List[str]
-    issues: List[str]
-    
-    def is_passing(self, threshold: float) -> bool:
-        return self.score >= threshold
+class RetentionPolicy:
+    log_type: str
+    retention_days: int
+    auto_delete: bool = True
 
 @dataclass
-class QualityGateResult:
-    overall_score: float
-    status: ReviewStatus
-    agent_results: Dict[str, ReviewResult]
-    summary: str
-    action_items: List[str]
-    
-    def is_passing(self, config: 'QualityGateConfig') -> bool:
-        return (
-            self.overall_score >= config.min_overall_score and
-            self.status != ReviewStatus.FAILED
-        )
+class AuditEvent:
+    timestamp: datetime
+    user_id: str
+    action: str
+    resource: str
+    success: bool
+    details: Dict[str, Any]
+
+@dataclass
+class User:
+    user_id: str
+    access_level: AccessLevel
+    allowed_resources: List[str]
