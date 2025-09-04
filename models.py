@@ -1,43 +1,37 @@
 from dataclasses import dataclass
 from typing import List, Dict, Any, Optional
-from enum import Enum
-
-class ReviewStatus(Enum):
-    PENDING = "pending"
-    APPROVED = "approved"
-    CHANGES_REQUESTED = "changes_requested"
-    COMMENTED = "commented"
 
 @dataclass
-class PRFile:
-    filename: str
-    additions: int
-    deletions: int
-    changes: int
-    patch: str
-    status: str
+class PlanTask:
+    """Represents a single task in a plan."""
+    description: str
+    expected_output: Optional[str] = None
+    dependencies: Optional[List[str]] = None
+    metadata: Optional[Dict[str, Any]] = None
 
 @dataclass
-class PullRequest:
-    number: int
-    title: str
-    body: str
-    author: str
-    base_branch: str
-    head_branch: str
-    files: List[PRFile]
-    repository: str
-    owner: str
+class Plan:
+    """Represents a complete execution plan."""
+    name: str
+    description: str
+    tasks: List[PlanTask]
+    metadata: Optional[Dict[str, Any]] = None
 
 @dataclass
-class ReviewComment:
-    body: str
-    path: Optional[str] = None
-    line: Optional[int] = None
+class AgentConfig:
+    """Configuration for a CrewAI agent."""
+    role: str
+    goal: str
+    backstory: str = ""
+    tools: List[str] = None
+    verbose: bool = False
+    
+    def __post_init__(self):
+        if self.tools is None:
+            self.tools = []
 
 @dataclass
-class ReviewResult:
-    status: ReviewStatus
-    summary: str
-    comments: List[ReviewComment]
-    auto_merge: bool = False
+class CrewConfig:
+    """Configuration for CrewAI orchestration."""
+    agents: List[AgentConfig]
+    verbose: bool = False
