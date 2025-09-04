@@ -1,113 +1,61 @@
 import requests
-from typing import List, Dict, Any, Optional
-from models import PullRequest, PRFile, ReviewComment, ReviewStatus
 import json
+from typing import Dict, Optional
+from dataclasses import dataclass
+
+@dataclass
+class PullRequest:
+    number: int
+    title: str
+    body: str
+    head_branch: str
+    base_branch: str
+    url: str
 
 class GitHubClient:
-    def __init__(self, token: str):
+    def __init__(self, token: str, repo_owner: str, repo_name: str):
+        if not token or not repo_owner or not repo_name:
+            raise ValueError("Token, repo_owner, and repo_name are required")
+        
         self.token = token
+        self.repo_owner = repo_owner
+        self.repo_name = repo_name
         self.base_url = "https://api.github.com"
         self.headers = {
             "Authorization": f"token {token}",
             "Accept": "application/vnd.github.v3+json"
         }
     
-    def get_pr_details(self, owner: str, repo: str, pr_number: int) -> PullRequest:
-        """Fetch PR details and files"""
-        pr_url = f"{self.base_url}/repos/{owner}/{repo}/pulls/{pr_number}"
-        files_url = f"{pr_url}/files"
+    def create_pull_request(self, title: str, body: str, head_branch: str, 
+                          base_branch: str = "main") -> PullRequest:
+        """Create a new pull request"""
+        if not title or not head_branch:
+            raise ValueError("Title and head_branch are required")
         
-        pr_response = self._make_request(pr_url)
-        files_response = self._make_request(files_url)
+        url = f"{self.base_url}/repos/{self.repo_owner}/{self.repo_name}/pulls"
+        data = {
+            "title": title,
+            "body": body,
+            "head": head_branch,
+            "base": base_branch
+        }
         
-        if not pr_response or not files_response:
-            raise ValueError(f"Failed to fetch PR {pr_number} details")
+        response = requests.post(url, headers=self.headers, json=data)
         
-        files = [
-            PRFile(
-                filename=f["filename"],
-                additions=f["additions"],
-                deletions=f["deletions"],
-                changes=f["changes"],
-                patch=f.get("patch", ""),
-                status=f["status"]
+        if response.status_code == 201:
+            pr_data = response.json()
+            return PullRequest(
+                number=pr_data["number"],
+                title=pr_data["title"],
+                body=pr_data["body"],
+                head_branch=pr_data["head"]["ref"],
+                base_branch=pr_data["base"]["ref"],
+                url=pr_data["html_url"]
             )
-            for f in files_response
-        ]
-        
-        return PullRequest(
-            number=pr_number,
-            title=pr_response["title"],
-            body=pr_response["body"] or "",
-            author=pr_response["user"]["login"],
-            base_branch=pr_response["base"]["ref"],
-            head_branch=pr_response["head"]["ref"],
-            files=files,
-            repository=repo,
-            owner=owner
-        )
+        else:
+            raise RuntimeError(f"Failed to create PR: {response.status_code} - {response.text}")
     
-    def submit_review(self, owner: str, repo: str, pr_number: int, 
-                     comments: List[ReviewComment], status: ReviewStatus, summary: str) -> bool:
-        """Submit PR review with comments"""
-        url = f"{self.base_url}/repos/{owner}/{repo}/pulls/{pr_number}/reviews"
-        
-        review_comments = []
-        general_comment = summary
-        
-        for comment in comments:
-            if comment.path and comment.line:
-                review_comments.append({
-                    "path": comment.path,
-                    "line": comment.line,
-                    "body": comment.body
-                })
-            else:
-                general_comment += f"\n\n{comment.body}"
-        
-        data = {
-            "body": general_comment,
-            "event": self._status_to_event(status),
-            "comments": review_comments
-        }
-        
-        response = self._make_request(url, method="POST", data=data)
-        return response is not None
-    
-    def merge_pr(self, owner: str, repo: str, pr_number: int) -> bool:
-        """Auto-merge PR if conditions are met"""
-        url = f"{self.base_url}/repos/{owner}/{repo}/pulls/{pr_number}/merge"
-        data = {
-            "commit_title": f"Auto-merge PR #{pr_number}",
-            "merge_method": "squash"
-        }
-        
-        response = self._make_request(url, method="PUT", data=data)
-        return response is not None
-    
-    def _make_request(self, url: str, method: str = "GET", data: Dict = None) -> Optional[Dict]:
-        """Make HTTP request to GitHub API"""
-        try:
-            if method == "GET":
-                response = requests.get(url, headers=self.headers)
-            elif method == "POST":
-                response = requests.post(url, headers=self.headers, json=data)
-            elif method == "PUT":
-                response = requests.put(url, headers=self.headers, json=data)
-            else:
-                raise ValueError(f"Unsupported method: {method}")
-            
-            response.raise_for_status()
-            return response.json()
-        except requests.RequestException as e:
-            print(f"GitHub API request failed: {e}")
-            return None
-    
-    def _status_to_event(self, status: ReviewStatus) -> str:
-        """Convert review status to GitHub event"""
-        mapping = {
-            ReviewStatus.APPROVED: "APPROVE",
-            ReviewStatus.CHANGES_REQUESTED: "REQUEST_CHANGES",
-            ReviewStatus.COMMENTED: "COMMENT"
-        }
-        return mapping.get(status, "COMMENT")
+    def update_pr_status(self, pr_number: int, status: str, description: str) -> bool:
+        """Update PR status check"""
+        # This would typically use the commit SHA, simplified for example
+        return True  # Placeholder implementation
