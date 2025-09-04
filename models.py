@@ -1,43 +1,51 @@
-from dataclasses import dataclass
-from datetime import datetime, timedelta
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Dict, List, Optional
 from enum import Enum
-from typing import List, Dict, Any, Optional
 
-class PIIType(Enum):
-    EMAIL = "email"
-    SSN = "ssn"
-    PHONE = "phone"
-    CREDIT_CARD = "credit_card"
+class OperationType(Enum):
+    CHAT = "chat"
+    COMPLETION = "completion"
+    EMBEDDING = "embedding"
+    FUNCTION_CALL = "function_call"
 
-class AccessLevel(Enum):
-    READ = "read"
-    WRITE = "write"
-    ADMIN = "admin"
-
-@dataclass
-class RedactionResult:
-    original_text: str
-    redacted_text: str
-    pii_found: List[PIIType]
-    redaction_count: int
+class BudgetStatus(Enum):
+    ACTIVE = "active"
+    WARNING = "warning"
+    EXCEEDED = "exceeded"
+    SUSPENDED = "suspended"
 
 @dataclass
-class RetentionPolicy:
-    log_type: str
-    retention_days: int
-    auto_delete: bool = True
-
-@dataclass
-class AuditEvent:
+class AgentUsage:
+    agent_id: str
+    agent_name: str
+    operation_type: OperationType
+    model: str
+    input_tokens: int
+    output_tokens: int
+    cost: float
     timestamp: datetime
-    user_id: str
-    action: str
-    resource: str
-    success: bool
-    details: Dict[str, Any]
+    crew_operation_id: Optional[str] = None
+    metadata: Dict = field(default_factory=dict)
 
 @dataclass
-class User:
-    user_id: str
-    access_level: AccessLevel
-    allowed_resources: List[str]
+class CrewOperation:
+    operation_id: str
+    crew_name: str
+    start_time: datetime
+    end_time: Optional[datetime] = None
+    total_cost: float = 0.0
+    agent_usages: List[AgentUsage] = field(default_factory=list)
+    status: str = "running"
+
+@dataclass
+class Budget:
+    budget_id: str
+    name: str
+    limit: float
+    spent: float = 0.0
+    period_start: datetime = field(default_factory=datetime.now)
+    period_end: Optional[datetime] = None
+    status: BudgetStatus = BudgetStatus.ACTIVE
+    alert_threshold: float = 0.8  # 80% threshold
+    agents: List[str] = field(default_factory=list)  # Empty = all agents
