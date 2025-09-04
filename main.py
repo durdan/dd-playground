@@ -1,56 +1,57 @@
-#!/usr/bin/env python3
-"""
-Enhanced Code Generator using CrewAI Multi-Agent Collaboration
-"""
-
-from services.enhanced_code_generator import EnhancedCodeGenerator
-import argparse
-import json
+import os
+from dotenv import load_dotenv
+from service import CodeReviewService
+from models import CodeReviewRequest, ReviewType
 
 def main():
-    parser = argparse.ArgumentParser(description="Generate code using CrewAI multi-agent collaboration")
-    parser.add_argument("--requirements", "-r", required=True, help="Requirements for code generation")
-    parser.add_argument("--output-dir", "-o", default="generated_code", help="Output directory")
-    parser.add_argument("--no-iterative", action="store_true", help="Disable iterative improvement")
-    parser.add_argument("--iterations", type=int, default=2, help="Number of improvement iterations")
-    parser.add_argument("--model", default="gpt-4", help="LLM model to use")
+    load_dotenv()
     
-    args = parser.parse_args()
+    # Ensure OpenAI API key is set
+    if not os.getenv("OPENAI_API_KEY"):
+        raise ValueError("OPENAI_API_KEY environment variable is required")
+    
+    service = CodeReviewService()
+    
+    # Example usage
+    sample_code = """
+def login(username, password):
+    query = f"SELECT * FROM users WHERE username='{username}' AND password='{password}'"
+    result = db.execute(query)
+    if result:
+        return True
+    return False
+
+def process_data(data):
+    results = []
+    for i in range(len(data)):
+        for j in range(len(data)):
+            if data[i] == data[j] and i != j:
+                results.append(data[i])
+    return results
+    """
+    
+    request = CodeReviewRequest(
+        file_path="auth.py",
+        code_content=sample_code,
+        review_types=[ReviewType.SECURITY, ReviewType.QUALITY, ReviewType.PERFORMANCE]
+    )
     
     try:
-        # Initialize the enhanced code generator
-        generator = EnhancedCodeGenerator(llm_model=args.model)
+        result = service.review_code(request)
+        print(f"Review Results for {result.file_path}")
+        print(f"Overall Score: {result.overall_score}/10")
+        print(f"Summary: {result.summary}")
+        print("\nIssues Found:")
         
-        print("🚀 Starting multi-agent code generation...")
-        print(f"Requirements: {args.requirements}")
-        
-        # Generate code
-        result = generator.generate_complex_implementation(
-            requirements=args.requirements,
-            use_iterative_improvement=not args.no_iterative,
-            iterations=args.iterations
-        )
-        
-        # Save generated code
-        saved_files = generator.save_generated_code(result, args.output_dir)
-        
-        print("\n✅ Code generation completed successfully!")
-        print(f"📁 Files saved to: {args.output_dir}")
-        for file in saved_files:
-            print(f"  - {file}")
-        
-        # Print summary
-        print(f"\n📊 Generation Summary:")
-        print(f"  - Architecture: ✓")
-        print(f"  - Implementation: ✓") 
-        print(f"  - Code Review: ✓")
-        print(f"  - Test Suite: ✓")
-        
+        for issue in result.issues:
+            print(f"- [{issue.type.value.upper()}] {issue.severity.upper()}: {issue.description}")
+            if issue.line_number:
+                print(f"  Line: {issue.line_number}")
+            print(f"  Suggestion: {issue.suggestion}")
+            print()
+            
     except Exception as e:
-        print(f"❌ Error: {e}")
-        return 1
-    
-    return 0
+        print(f"Error during code review: {e}")
 
 if __name__ == "__main__":
-    exit(main())
+    main()
