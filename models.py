@@ -1,46 +1,85 @@
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
+from typing import Dict, List, Optional, Any
 from enum import Enum
-from typing import Dict, Any, List, Optional
-import uuid
 
-class ApprovalStatus(Enum):
-    PENDING = "pending"
-    APPROVED = "approved"
-    REJECTED = "rejected"
-    EXPIRED = "expired"
+class MetricType(Enum):
+    COUNTER = "counter"
+    GAUGE = "gauge"
+    HISTOGRAM = "histogram"
 
-class RiskLevel(Enum):
-    LOW = "low"
-    MEDIUM = "medium"
-    HIGH = "high"
-    CRITICAL = "critical"
+class LogLevel(Enum):
+    DEBUG = "debug"
+    INFO = "info"
+    WARN = "warn"
+    ERROR = "error"
 
 @dataclass
-class HumanApprovalRequest:
-    id: str = field(default_factory=lambda: str(uuid.uuid4()))
-    operation_type: str = ""
-    description: str = ""
-    risk_level: RiskLevel = RiskLevel.LOW
-    context: Dict[str, Any] = field(default_factory=dict)
-    requested_at: datetime = field(default_factory=datetime.now)
-    expires_at: datetime = field(default_factory=lambda: datetime.now() + timedelta(hours=24))
-    status: ApprovalStatus = ApprovalStatus.PENDING
-    approved_by: Optional[str] = None
-    rejection_reason: Optional[str] = None
-
-@dataclass
-class SafetyRule:
+class Metric:
     name: str
-    max_value: float
-    metric_key: str
-    description: str = ""
+    value: float
+    metric_type: MetricType
+    timestamp: datetime
+    labels: Dict[str, str] = field(default_factory=dict)
+    
+    def __post_init__(self):
+        if not self.name:
+            raise ValueError("Metric name cannot be empty")
+        if self.value < 0 and self.metric_type == MetricType.COUNTER:
+            raise ValueError("Counter values cannot be negative")
 
 @dataclass
-class OperationResult:
-    success: bool
-    operation_id: str
+class LogEntry:
     message: str
-    requires_approval: bool = False
-    approval_request_id: Optional[str] = None
-    safety_violations: List[str] = field(default_factory=list)
+    level: LogLevel
+    timestamp: datetime
+    service: str
+    labels: Dict[str, str] = field(default_factory=dict)
+    
+    def __post_init__(self):
+        if not self.message:
+            raise ValueError("Log message cannot be empty")
+        if not self.service:
+            raise ValueError("Service name cannot be empty")
+
+@dataclass
+class TraceSpan:
+    trace_id: str
+    span_id: str
+    operation: str
+    start_time: datetime
+    duration_ms: float
+    service: str
+    status: str = "ok"
+    labels: Dict[str, str] = field(default_factory=dict)
+    
+    def __post_init__(self):
+        if not self.trace_id or not self.span_id:
+            raise ValueError("Trace ID and Span ID are required")
+        if self.duration_ms < 0:
+            raise ValueError("Duration cannot be negative")
+
+@dataclass
+class CostEntry:
+    resource_id: str
+    resource_type: str
+    service: str
+    cost: float
+    usage_amount: float
+    usage_unit: str
+    timestamp: datetime
+    labels: Dict[str, str] = field(default_factory=dict)
+    
+    def __post_init__(self):
+        if not self.resource_id or not self.resource_type:
+            raise ValueError("Resource ID and type are required")
+        if self.cost < 0 or self.usage_amount < 0:
+            raise ValueError("Cost and usage cannot be negative")
+
+@dataclass
+class Report:
+    title: str
+    report_type: str
+    data: Dict[str, Any]
+    generated_at: datetime
+    time_range: Dict[str, datetime]
