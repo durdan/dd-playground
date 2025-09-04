@@ -1,136 +1,104 @@
-from crewai import Crew
-from typing import Dict, Any, Optional
-from .test_generator import BaseTestGenerator, TestSuite, TestCase
-from .crew_agents import TestCrewAgents
-from .crew_tasks import TestCrewTasks
+from typing import List, Dict, Any, Optional
+from dataclasses import dataclass
+from enum import Enum
+import asyncio
 import logging
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+class TestType(Enum):
+    UNIT = "unit"
+    INTEGRATION = "integration"
+    E2E = "e2e"
+    PERFORMANCE = "performance"
+    SECURITY = "security"
 
-class CrewAITestCoordinator:
-    """Coordinates test generation using CrewAI agents"""
-    
-    def __init__(self):
-        self.base_generator = BaseTestGenerator()
-        self.agents = TestCrewAgents()
-        self.tasks = TestCrewTasks()
-    
-    def generate_coordinated_tests(self, code: str, module_name: str) -> TestSuite:
-        """Generate tests using CrewAI coordination"""
-        try:
-            # Step 1: Analyze code using base generator
-            logger.info(f"Analyzing code for module: {module_name}")
-            code_analysis = self.base_generator.analyze_code(code)
-            
-            # Step 2: Create CrewAI agents
-            planner = self.agents.create_test_planner()
-            writer = self.agents.create_test_writer()
-            reviewer = self.agents.create_test_reviewer()
-            
-            # Step 3: Create tasks
-            planning_task = self.tasks.create_planning_task(code_analysis)
-            planning_task.agent = planner
-            
-            # Step 4: Execute planning
-            crew = Crew(
-                agents=[planner],
-                tasks=[planning_task],
-                verbose=True
-            )
-            
-            planning_result = crew.kickoff()
-            logger.info("Test planning completed")
-            
-            # Step 5: Generate test code
-            writing_task = self.tasks.create_writing_task(str(planning_result))
-            writing_task.agent = writer
-            
-            writing_crew = Crew(
-                agents=[writer],
-                tasks=[writing_task],
-                verbose=True
-            )
-            
-            test_code_result = writing_crew.kickoff()
-            logger.info("Test code generation completed")
-            
-            # Step 6: Review and refine
-            review_task = self.tasks.create_review_task(str(test_code_result))
-            review_task.agent = reviewer
-            
-            review_crew = Crew(
-                agents=[reviewer],
-                tasks=[review_task],
-                verbose=True
-            )
-            
-            final_result = review_crew.kickoff()
-            logger.info("Test review completed")
-            
-            # Step 7: Parse and structure results
-            test_cases = self._parse_generated_tests(str(final_result), code_analysis)
-            
-            return TestSuite(
-                module_name=module_name,
-                test_cases=test_cases,
-                coverage_target=0.85
-            )
-            
-        except Exception as e:
-            logger.error(f"Error in coordinated test generation: {e}")
-            # Fallback to basic generation
-            return self._fallback_generation(code, module_name, code_analysis)
-    
-    def _parse_generated_tests(self, generated_code: str, analysis: Dict[str, Any]) -> List[TestCase]:
-        """Parse generated test code into TestCase objects"""
-        test_cases = []
+@dataclass
+class TestRequest:
+    code_path: str
+    test_types: List[TestType]
+    coverage_threshold: float = 0.8
+    priority: int = 1
+    metadata: Dict[str, Any] = None
+
+@dataclass
+class TestResult:
+    agent_name: str
+    test_type: TestType
+    test_code: str
+    coverage_info: Dict[str, float]
+    execution_time: float
+    success: bool
+    errors: List[str] = None
+
+class TestCoordinator:
+    def __init__(self, subagent_manager, crewai_manager, config_manager):
+        self.subagent_manager = subagent_manager
+        self.crewai_manager = crewai_manager
+        self.config_manager = config_manager
+        self.test_aggregator = TestAggregator()
+        self.logger = logging.getLogger(__name__)
+
+    async def generate_comprehensive_tests(self, request: TestRequest) -> Dict[str, List[TestResult]]:
+        """Coordinate test generation across all available agents."""
+        if not request.code_path:
+            raise ValueError("Code path is required")
         
-        # Simple parsing - in production, use AST parsing
-        lines = generated_code.split('\n')
-        current_test = None
-        current_code = []
+        strategy = self._create_test_strategy(request)
         
-        for line in lines:
-            if line.strip().startswith('def test_'):
-                if current_test:
-                    test_cases.append(TestCase(
-                        name=current_test,
-                        description=f"Generated test for {current_test}",
-                        test_code='\n'.join(current_code),
-                        test_type="unit"
-                    ))
-                
-                current_test = line.strip().split('(')[0].replace('def ', '')
-                current_code = [line]
-            elif current_test and line.strip():
-                current_code.append(line)
+        # Run agents in parallel based on strategy
+        tasks = []
         
-        # Add the last test
-        if current_test and current_code:
-            test_cases.append(TestCase(
-                name=current_test,
-                description=f"Generated test for {current_test}",
-                test_code='\n'.join(current_code),
-                test_type="unit"
-            ))
+        if strategy.use_subagents:
+            tasks.append(self._run_subagents(request, strategy.subagent_types))
         
-        return test_cases if test_cases else self._create_fallback_tests(analysis)
-    
-    def _create_fallback_tests(self, analysis: Dict[str, Any]) -> List[TestCase]:
-        """Create basic tests if parsing fails"""
-        test_cases = []
-        for func in analysis.get('functions', []):
-            test_case = self.base_generator.generate_basic_test(func)
-            test_cases.append(test_case)
-        return test_cases
-    
-    def _fallback_generation(self, code: str, module_name: str, analysis: Dict[str, Any]) -> TestSuite:
-        """Fallback to basic generation if CrewAI fails"""
-        logger.warning("Using fallback test generation")
-        test_cases = self._create_fallback_tests(analysis)
-        return TestSuite(
-            module_name=module_name,
-            test_cases=test_cases,
-            coverage_target=0.7
+        if strategy.use_crewai:
+            tasks.append(self._run_crewai_agents(request, strategy.crewai_types))
+        
+        if not tasks:
+            raise ValueError("No agents configured for the requested test types")
+        
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Aggregate and deduplicate results
+        all_results = []
+        for result in results:
+            if isinstance(result, Exception):
+                self.logger.error(f"Agent execution failed: {result}")
+                continue
+            all_results.extend(result)
+        
+        return self.test_aggregator.aggregate_results(all_results)
+
+    def _create_test_strategy(self, request: TestRequest) -> 'TestStrategy':
+        """Determine which agents should handle which test types."""
+        config = self.config_manager.get_strategy_config()
+        
+        subagent_types = []
+        crewai_types = []
+        
+        for test_type in request.test_types:
+            if test_type in config.get('subagent_specialties', []):
+                subagent_types.append(test_type)
+            if test_type in config.get('crewai_specialties', []):
+                crewai_types.append(test_type)
+        
+        return TestStrategy(
+            use_subagents=bool(subagent_types),
+            use_crewai=bool(crewai_types),
+            subagent_types=subagent_types,
+            crewai_types=crewai_types
         )
+
+    async def _run_subagents(self, request: TestRequest, test_types: List[TestType]) -> List[TestResult]:
+        """Execute existing subagent test generators."""
+        return await self.subagent_manager.generate_tests(request, test_types)
+
+    async def _run_crewai_agents(self, request: TestRequest, test_types: List[TestType]) -> List[TestResult]:
+        """Execute CrewAI test writer agents."""
+        return await self.crewai_manager.generate_tests(request, test_types)
+
+@dataclass
+class TestStrategy:
+    use_subagents: bool
+    use_crewai: bool
+    subagent_types: List[TestType]
+    crewai_types: List[TestType]
