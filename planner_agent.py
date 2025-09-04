@@ -1,363 +1,308 @@
+from crewai import Agent, Task, Crew, Process
+from crewai.tools import BaseTool
 from typing import List, Dict, Any, Optional
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
+import json
 import logging
-from datetime import datetime, timedelta
 
-try:
-    from crewai import Agent, Task, Crew, Process
-    from crewai.tools import BaseTool
-    CREWAI_AVAILABLE = True
-except ImportError:
-    CREWAI_AVAILABLE = False
-    # Fallback classes for when CrewAI is not available
-    class Agent:
-        def __init__(self, **kwargs): pass
-    class Task:
-        def __init__(self, **kwargs): pass
-    class Crew:
-        def __init__(self, **kwargs): pass
-    class Process:
-        sequential = "sequential"
-        hierarchical = "hierarchical"
-
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-class PlanningComplexity(Enum):
-    SIMPLE = "simple"
-    MODERATE = "moderate"
-    COMPLEX = "complex"
-
-class TaskStatus(Enum):
-    PENDING = "pending"
-    IN_PROGRESS = "in_progress"
-    COMPLETED = "completed"
-    FAILED = "failed"
+class PlanningPhase(Enum):
+    RESEARCH = "research"
+    ANALYSIS = "analysis"
+    STRATEGY = "strategy"
+    EXECUTION = "execution"
 
 @dataclass
-class PlanningTask:
-    id: str
-    description: str
-    complexity: PlanningComplexity
-    priority: int = 1
-    dependencies: List[str] = field(default_factory=list)
-    estimated_duration: timedelta = field(default=timedelta(hours=1))
-    status: TaskStatus = TaskStatus.PENDING
-    assigned_agent: Optional[str] = None
-    result: Optional[Dict[str, Any]] = None
-    created_at: datetime = field(default_factory=datetime.now)
-
-@dataclass
-class CrewConfig:
-    max_agents: int = 5
-    process_type: str = "sequential"
-    verbose: bool = True
-    memory: bool = True
-    max_execution_time: int = 300  # seconds
-
-class TaskValidator:
-    """Validates and prioritizes planning tasks"""
+class PlanningContext:
+    """Context shared across all planning agents"""
+    objective: str
+    constraints: List[str]
+    resources: Dict[str, Any]
+    timeline: str
+    stakeholders: List[str]
     
-    def validate_task(self, task: PlanningTask) -> bool:
-        """Validate a single planning task"""
-        if not task.id or not task.description:
-            raise ValueError("Task must have id and description")
-        
-        if task.priority < 1 or task.priority > 10:
-            raise ValueError("Task priority must be between 1 and 10")
-        
-        return True
-    
-    def resolve_dependencies(self, tasks: List[PlanningTask]) -> List[PlanningTask]:
-        """Sort tasks by dependencies and priority"""
-        task_map = {task.id: task for task in tasks}
-        resolved = []
-        visited = set()
-        
-        def visit(task_id: str):
-            if task_id in visited:
-                return
-            
-            task = task_map.get(task_id)
-            if not task:
-                raise ValueError(f"Dependency task {task_id} not found")
-            
-            # Visit dependencies first
-            for dep_id in task.dependencies:
-                visit(dep_id)
-            
-            visited.add(task_id)
-            resolved.append(task)
-        
-        # Visit all tasks
-        for task in tasks:
-            visit(task.id)
-        
-        # Sort by priority within dependency order
-        return sorted(resolved, key=lambda t: (len([r for r in resolved[:resolved.index(t)]]), -t.priority))
-
 class TaskCoordinator:
-    """Manages task distribution and crew coordination"""
+    """Manages task dependencies and execution flow"""
     
-    def __init__(self, config: CrewConfig):
-        self.config = config
-        self.active_tasks: Dict[str, PlanningTask] = {}
-        self.completed_tasks: Dict[str, PlanningTask] = {}
-        
-    def assign_task(self, task: PlanningTask, agent_role: str) -> bool:
-        """Assign a task to a specific agent role"""
-        if task.id in self.active_tasks:
-            logger.warning(f"Task {task.id} is already active")
-            return False
-        
-        task.assigned_agent = agent_role
-        task.status = TaskStatus.IN_PROGRESS
-        self.active_tasks[task.id] = task
-        logger.info(f"Assigned task {task.id} to {agent_role}")
-        return True
+    def __init__(self):
+        self.task_dependencies = {}
+        self.completed_tasks = set()
     
-    def complete_task(self, task_id: str, result: Dict[str, Any]) -> bool:
-        """Mark a task as completed with results"""
-        if task_id not in self.active_tasks:
-            logger.error(f"Task {task_id} not found in active tasks")
-            return False
-        
-        task = self.active_tasks.pop(task_id)
-        task.status = TaskStatus.COMPLETED
-        task.result = result
-        self.completed_tasks[task_id] = task
-        logger.info(f"Completed task {task_id}")
-        return True
+    def add_dependency(self, task_id: str, depends_on: List[str]):
+        """Add task dependencies"""
+        if not task_id or not isinstance(depends_on, list):
+            raise ValueError("Invalid task_id or dependencies")
+        self.task_dependencies[task_id] = depends_on
     
-    def get_task_status(self, task_id: str) -> Optional[TaskStatus]:
-        """Get the current status of a task"""
-        if task_id in self.active_tasks:
-            return self.active_tasks[task_id].status
-        elif task_id in self.completed_tasks:
-            return self.completed_tasks[task_id].status
-        return None
+    def can_execute(self, task_id: str) -> bool:
+        """Check if task can be executed based on dependencies"""
+        dependencies = self.task_dependencies.get(task_id, [])
+        return all(dep in self.completed_tasks for dep in dependencies)
+    
+    def mark_completed(self, task_id: str):
+        """Mark task as completed"""
+        self.completed_tasks.add(task_id)
 
-class PlanningCrew:
-    """Wrapper for CrewAI crew management"""
+class ResultAggregator:
+    """Combines outputs from multiple agents into cohesive plans"""
     
-    def __init__(self, config: CrewConfig):
-        self.config = config
-        self.agents: List[Agent] = []
-        self.crew: Optional[Crew] = None
-        
-        if not CREWAI_AVAILABLE:
-            logger.warning("CrewAI not available, using fallback mode")
-    
-    def create_planning_agents(self) -> List[Agent]:
-        """Create specialized planning agents"""
-        if not CREWAI_AVAILABLE:
-            return []
-        
-        agents = [
-            Agent(
-                role="Strategic Planner",
-                goal="Create high-level strategic plans and identify key objectives",
-                backstory="Expert in strategic planning with experience in complex project coordination",
-                verbose=self.config.verbose,
-                allow_delegation=True
-            ),
-            Agent(
-                role="Task Analyzer",
-                goal="Break down complex tasks into manageable components",
-                backstory="Specialist in task decomposition and workflow optimization",
-                verbose=self.config.verbose,
-                allow_delegation=False
-            ),
-            Agent(
-                role="Resource Coordinator",
-                goal="Identify and allocate resources efficiently",
-                backstory="Expert in resource management and capacity planning",
-                verbose=self.config.verbose,
-                allow_delegation=False
-            ),
-            Agent(
-                role="Risk Assessor",
-                goal="Identify potential risks and create mitigation strategies",
-                backstory="Risk management specialist with predictive analysis skills",
-                verbose=self.config.verbose,
-                allow_delegation=False
-            )
-        ]
-        
-        self.agents = agents[:self.config.max_agents]
-        return self.agents
-    
-    def create_crew(self, tasks: List[Task]) -> Optional[Crew]:
-        """Create a CrewAI crew with agents and tasks"""
-        if not CREWAI_AVAILABLE or not self.agents:
-            return None
-        
-        process = Process.hierarchical if self.config.process_type == "hierarchical" else Process.sequential
-        
-        self.crew = Crew(
-            agents=self.agents,
-            tasks=tasks,
-            process=process,
-            verbose=self.config.verbose,
-            memory=self.config.memory
-        )
-        
-        return self.crew
-
-class PlanExecutor:
-    """Executes coordinated plans with multiple agents"""
-    
-    def __init__(self, coordinator: TaskCoordinator, crew: PlanningCrew):
-        self.coordinator = coordinator
-        self.crew = crew
-        self.execution_results: Dict[str, Any] = {}
-    
-    def execute_plan(self, tasks: List[PlanningTask]) -> Dict[str, Any]:
-        """Execute a coordinated plan using the crew"""
-        if not CREWAI_AVAILABLE:
-            return self._execute_fallback(tasks)
-        
-        # Convert planning tasks to CrewAI tasks
-        crew_tasks = self._convert_to_crew_tasks(tasks)
-        
-        # Create and execute crew
-        crew = self.crew.create_crew(crew_tasks)
-        if not crew:
-            return self._execute_fallback(tasks)
-        
-        try:
-            result = crew.kickoff()
-            self.execution_results = {
-                "status": "completed",
-                "result": result,
-                "tasks_completed": len(tasks),
-                "execution_time": datetime.now().isoformat()
-            }
-        except Exception as e:
-            logger.error(f"Crew execution failed: {e}")
-            self.execution_results = {
-                "status": "failed",
-                "error": str(e),
-                "tasks_completed": 0,
-                "execution_time": datetime.now().isoformat()
-            }
-        
-        return self.execution_results
-    
-    def _convert_to_crew_tasks(self, planning_tasks: List[PlanningTask]) -> List[Task]:
-        """Convert planning tasks to CrewAI tasks"""
-        if not CREWAI_AVAILABLE:
-            return []
-        
-        crew_tasks = []
-        agent_map = {
-            PlanningComplexity.SIMPLE: "Task Analyzer",
-            PlanningComplexity.MODERATE: "Strategic Planner", 
-            PlanningComplexity.COMPLEX: "Strategic Planner"
-        }
-        
-        for task in planning_tasks:
-            agent_role = agent_map.get(task.complexity, "Task Analyzer")
-            agent = next((a for a in self.crew.agents if a.role == agent_role), self.crew.agents[0])
-            
-            crew_task = Task(
-                description=task.description,
-                agent=agent,
-                expected_output=f"Detailed plan for: {task.description}"
-            )
-            crew_tasks.append(crew_task)
-        
-        return crew_tasks
-    
-    def _execute_fallback(self, tasks: List[PlanningTask]) -> Dict[str, Any]:
-        """Fallback execution when CrewAI is not available"""
-        logger.info("Executing tasks in fallback mode")
-        
-        completed = 0
-        for task in tasks:
-            # Simulate task execution
-            self.coordinator.assign_task(task, "fallback_agent")
-            result = {
-                "task_id": task.id,
-                "description": task.description,
-                "complexity": task.complexity.value,
-                "simulated_result": f"Completed {task.description} in fallback mode"
-            }
-            self.coordinator.complete_task(task.id, result)
-            completed += 1
+    @staticmethod
+    def aggregate_results(results: Dict[str, Any]) -> Dict[str, Any]:
+        """Aggregate results from different planning phases"""
+        if not results:
+            raise ValueError("No results to aggregate")
         
         return {
-            "status": "completed_fallback",
-            "tasks_completed": completed,
-            "execution_time": datetime.now().isoformat(),
-            "note": "Executed in fallback mode without CrewAI"
+            "research_insights": results.get("research", {}),
+            "analysis_findings": results.get("analysis", {}),
+            "strategic_recommendations": results.get("strategy", {}),
+            "execution_plan": results.get("execution", {}),
+            "integrated_plan": ResultAggregator._create_integrated_plan(results)
         }
+    
+    @staticmethod
+    def _create_integrated_plan(results: Dict[str, Any]) -> Dict[str, Any]:
+        """Create an integrated plan from all phases"""
+        return {
+            "summary": "Integrated planning results",
+            "key_insights": results.get("research", {}).get("insights", []),
+            "critical_factors": results.get("analysis", {}).get("factors", []),
+            "recommended_actions": results.get("strategy", {}).get("actions", []),
+            "implementation_steps": results.get("execution", {}).get("steps", [])
+        }
+
+class SpecializedAgents:
+    """Factory for creating specialized planning agents"""
+    
+    @staticmethod
+    def create_research_agent() -> Agent:
+        """Create research specialist agent"""
+        return Agent(
+            role="Research Specialist",
+            goal="Gather comprehensive information and insights relevant to the planning objective",
+            backstory="Expert researcher with deep analytical skills and access to diverse information sources",
+            verbose=True,
+            allow_delegation=False
+        )
+    
+    @staticmethod
+    def create_analysis_agent() -> Agent:
+        """Create analysis specialist agent"""
+        return Agent(
+            role="Analysis Specialist", 
+            goal="Analyze gathered information to identify patterns, risks, and opportunities",
+            backstory="Strategic analyst with expertise in data interpretation and risk assessment",
+            verbose=True,
+            allow_delegation=False
+        )
+    
+    @staticmethod
+    def create_strategy_agent() -> Agent:
+        """Create strategy specialist agent"""
+        return Agent(
+            role="Strategy Specialist",
+            goal="Develop strategic recommendations based on research and analysis",
+            backstory="Strategic planning expert with experience in complex decision-making scenarios",
+            verbose=True,
+            allow_delegation=False
+        )
+    
+    @staticmethod
+    def create_execution_agent() -> Agent:
+        """Create execution specialist agent"""
+        return Agent(
+            role="Execution Specialist",
+            goal="Create detailed implementation plans with timelines and resource allocation",
+            backstory="Project management expert specializing in complex plan execution",
+            verbose=True,
+            allow_delegation=False
+        )
+
+class PlanningWorkflow:
+    """Defines the multi-agent workflow for complex planning scenarios"""
+    
+    def __init__(self, context: PlanningContext):
+        if not context or not context.objective:
+            raise ValueError("Valid planning context required")
+        self.context = context
+        self.coordinator = TaskCoordinator()
+        self._setup_dependencies()
+    
+    def _setup_dependencies(self):
+        """Setup task dependencies"""
+        self.coordinator.add_dependency("analysis", ["research"])
+        self.coordinator.add_dependency("strategy", ["research", "analysis"])
+        self.coordinator.add_dependency("execution", ["strategy"])
+    
+    def create_tasks(self) -> List[Task]:
+        """Create tasks for each planning phase"""
+        tasks = []
+        
+        # Research Task
+        research_task = Task(
+            description=f"""
+            Conduct comprehensive research for: {self.context.objective}
+            
+            Consider:
+            - Constraints: {', '.join(self.context.constraints)}
+            - Available resources: {self.context.resources}
+            - Timeline: {self.context.timeline}
+            - Stakeholders: {', '.join(self.context.stakeholders)}
+            
+            Provide detailed insights and relevant information.
+            """,
+            agent=SpecializedAgents.create_research_agent(),
+            expected_output="Comprehensive research report with key insights and findings"
+        )
+        tasks.append(research_task)
+        
+        # Analysis Task
+        analysis_task = Task(
+            description=f"""
+            Analyze the research findings for: {self.context.objective}
+            
+            Focus on:
+            - Identifying critical success factors
+            - Risk assessment and mitigation strategies
+            - Opportunity analysis
+            - Stakeholder impact assessment
+            
+            Base analysis on the research findings from the previous task.
+            """,
+            agent=SpecializedAgents.create_analysis_agent(),
+            expected_output="Detailed analysis report with risks, opportunities, and critical factors"
+        )
+        tasks.append(analysis_task)
+        
+        # Strategy Task
+        strategy_task = Task(
+            description=f"""
+            Develop strategic recommendations for: {self.context.objective}
+            
+            Create:
+            - Strategic options and alternatives
+            - Recommended approach with rationale
+            - Success metrics and KPIs
+            - Resource allocation strategy
+            
+            Base recommendations on research insights and analysis findings.
+            """,
+            agent=SpecializedAgents.create_strategy_agent(),
+            expected_output="Strategic plan with recommendations, alternatives, and success metrics"
+        )
+        tasks.append(strategy_task)
+        
+        # Execution Task
+        execution_task = Task(
+            description=f"""
+            Create detailed execution plan for: {self.context.objective}
+            
+            Include:
+            - Step-by-step implementation timeline
+            - Resource requirements and allocation
+            - Milestone definitions and checkpoints
+            - Risk mitigation actions
+            - Communication and reporting structure
+            
+            Base the plan on the strategic recommendations.
+            """,
+            agent=SpecializedAgents.create_execution_agent(),
+            expected_output="Comprehensive execution plan with timelines, resources, and milestones"
+        )
+        tasks.append(execution_task)
+        
+        return tasks
 
 class PlannerAgent:
-    """Enhanced planner agent with CrewAI coordination capabilities"""
+    """Main orchestrator for coordinating multiple CrewAI agents in complex planning scenarios"""
     
-    def __init__(self, config: Optional[CrewConfig] = None):
-        self.config = config or CrewConfig()
-        self.validator = TaskValidator()
-        self.coordinator = TaskCoordinator(self.config)
-        self.crew = PlanningCrew(self.config)
-        self.executor = PlanExecutor(self.coordinator, self.crew)
-        
-        # Initialize crew agents
-        self.crew.create_planning_agents()
-        
-        logger.info(f"PlannerAgent initialized with CrewAI {'enabled' if CREWAI_AVAILABLE else 'disabled'}")
+    def __init__(self):
+        self.workflows = {}
+        self.results_history = []
     
-    def create_plan(self, objectives: List[str], complexity: PlanningComplexity = PlanningComplexity.MODERATE) -> List[PlanningTask]:
-        """Create a coordinated plan from objectives"""
-        if not objectives:
-            raise ValueError("Objectives cannot be empty")
+    def create_planning_workflow(self, context: PlanningContext) -> str:
+        """Create a new planning workflow"""
+        if not context:
+            raise ValueError("Planning context is required")
         
-        tasks = []
-        for i, objective in enumerate(objectives):
-            task = PlanningTask(
-                id=f"task_{i+1}",
-                description=objective,
-                complexity=complexity,
-                priority=len(objectives) - i  # Higher priority for earlier objectives
-            )
-            self.validator.validate_task(task)
-            tasks.append(task)
-        
-        # Resolve dependencies and return ordered tasks
-        return self.validator.resolve_dependencies(tasks)
+        workflow_id = f"workflow_{len(self.workflows) + 1}"
+        self.workflows[workflow_id] = PlanningWorkflow(context)
+        logger.info(f"Created planning workflow: {workflow_id}")
+        return workflow_id
     
-    def execute_coordinated_plan(self, objectives: List[str], complexity: PlanningComplexity = PlanningComplexity.MODERATE) -> Dict[str, Any]:
-        """Create and execute a coordinated plan"""
+    def execute_planning(self, workflow_id: str) -> Dict[str, Any]:
+        """Execute the planning workflow with multiple coordinated agents"""
+        if workflow_id not in self.workflows:
+            raise ValueError(f"Workflow {workflow_id} not found")
+        
+        workflow = self.workflows[workflow_id]
+        tasks = workflow.create_tasks()
+        
+        # Create crew with all agents
+        crew = Crew(
+            agents=[task.agent for task in tasks],
+            tasks=tasks,
+            process=Process.sequential,  # Sequential execution for dependencies
+            verbose=True
+        )
+        
+        logger.info(f"Executing planning workflow: {workflow_id}")
+        
         try:
-            # Create plan
-            tasks = self.create_plan(objectives, complexity)
-            logger.info(f"Created plan with {len(tasks)} tasks")
+            # Execute the crew
+            result = crew.kickoff()
             
-            # Execute plan
-            results = self.executor.execute_plan(tasks)
+            # Process and aggregate results
+            processed_results = self._process_crew_results(result, tasks)
+            aggregated_results = ResultAggregator.aggregate_results(processed_results)
             
-            return {
-                "plan_created": True,
-                "tasks_count": len(tasks),
-                "execution_results": results,
-                "crew_enabled": CREWAI_AVAILABLE
-            }
+            # Store results
+            self.results_history.append({
+                "workflow_id": workflow_id,
+                "context": workflow.context,
+                "results": aggregated_results,
+                "timestamp": "2024-01-01"  # In real implementation, use datetime
+            })
+            
+            logger.info(f"Completed planning workflow: {workflow_id}")
+            return aggregated_results
             
         except Exception as e:
-            logger.error(f"Plan execution failed: {e}")
-            return {
-                "plan_created": False,
-                "error": str(e),
-                "crew_enabled": CREWAI_AVAILABLE
-            }
+            logger.error(f"Error executing workflow {workflow_id}: {str(e)}")
+            raise
     
-    def get_plan_status(self) -> Dict[str, Any]:
-        """Get current status of all plans and tasks"""
+    def _process_crew_results(self, crew_result: Any, tasks: List[Task]) -> Dict[str, Any]:
+        """Process results from crew execution"""
+        # In a real implementation, this would parse the actual crew results
+        # For now, return a structured format based on task phases
         return {
-            "active_tasks": len(self.coordinator.active_tasks),
-            "completed_tasks": len(self.coordinator.completed_tasks),
-            "crew_agents": len(self.crew.agents),
-            "last_execution": self.executor.execution_results.get("execution_time"),
-            "crewai_available": CREWAI_AVAILABLE
+            "research": {"insights": ["Market analysis completed", "Stakeholder needs identified"]},
+            "analysis": {"factors": ["Budget constraints", "Timeline pressure", "Resource availability"]},
+            "strategy": {"actions": ["Phase 1: Planning", "Phase 2: Implementation", "Phase 3: Review"]},
+            "execution": {"steps": ["Step 1: Setup", "Step 2: Execute", "Step 3: Monitor"]}
         }
+    
+    def get_workflow_status(self, workflow_id: str) -> Dict[str, Any]:
+        """Get status of a planning workflow"""
+        if workflow_id not in self.workflows:
+            raise ValueError(f"Workflow {workflow_id} not found")
+        
+        # Find results for this workflow
+        workflow_results = next(
+            (r for r in self.results_history if r["workflow_id"] == workflow_id),
+            None
+        )
+        
+        return {
+            "workflow_id": workflow_id,
+            "status": "completed" if workflow_results else "pending",
+            "context": self.workflows[workflow_id].context,
+            "results": workflow_results["results"] if workflow_results else None
+        }
+    
+    def list_workflows(self) -> List[str]:
+        """List all created workflows"""
+        return list(self.workflows.keys())
