@@ -1,57 +1,47 @@
+"""Main application demonstrating CrewAI provider coordination"""
 import os
 from dotenv import load_dotenv
-from service import CodeReviewService
-from models import CodeReviewRequest, ReviewType
+from ai_crew import AIProviderCrew
 
 def main():
+    # Load environment variables
     load_dotenv()
     
-    # Ensure OpenAI API key is set
-    if not os.getenv("OPENAI_API_KEY"):
-        raise ValueError("OPENAI_API_KEY environment variable is required")
+    # Initialize the AI provider crew
+    crew = AIProviderCrew()
     
-    service = CodeReviewService()
+    print("=== AI Provider Coordination with CrewAI ===\n")
     
-    # Example usage
-    sample_code = """
-def login(username, password):
-    query = f"SELECT * FROM users WHERE username='{username}' AND password='{password}'"
-    result = db.execute(query)
-    if result:
-        return True
-    return False
-
-def process_data(data):
-    results = []
-    for i in range(len(data)):
-        for j in range(len(data)):
-            if data[i] == data[j] and i != j:
-                results.append(data[i])
-    return results
-    """
-    
-    request = CodeReviewRequest(
-        file_path="auth.py",
-        code_content=sample_code,
-        review_types=[ReviewType.SECURITY, ReviewType.QUALITY, ReviewType.PERFORMANCE]
+    # Example 1: Process a simple request
+    print("1. Processing a simple request:")
+    result = crew.process_request(
+        "Explain quantum computing in simple terms",
+        requirements={"max_tokens": 150, "temperature": 0.7}
     )
+    print(f"Result: {result}\n")
     
-    try:
-        result = service.review_code(request)
-        print(f"Review Results for {result.file_path}")
-        print(f"Overall Score: {result.overall_score}/10")
-        print(f"Summary: {result.summary}")
-        print("\nIssues Found:")
-        
-        for issue in result.issues:
-            print(f"- [{issue.type.value.upper()}] {issue.severity.upper()}: {issue.description}")
-            if issue.line_number:
-                print(f"  Line: {issue.line_number}")
-            print(f"  Suggestion: {issue.suggestion}")
-            print()
-            
-    except Exception as e:
-        print(f"Error during code review: {e}")
+    # Example 2: Get provider status
+    print("2. Getting provider status:")
+    status = crew.get_provider_status()
+    print(f"Status: {status}\n")
+    
+    # Example 3: Optimize routing
+    print("3. Optimizing routing:")
+    optimization = crew.optimize_routing()
+    print(f"Optimization: {optimization}\n")
+    
+    # Example 4: Process multiple requests to see load balancing
+    print("4. Processing multiple requests:")
+    requests = [
+        "What is machine learning?",
+        "Explain neural networks",
+        "How does AI work?"
+    ]
+    
+    for i, request in enumerate(requests, 1):
+        print(f"Request {i}: {request}")
+        result = crew.process_request(request)
+        print(f"Response: {result[:100]}...\n")
 
 if __name__ == "__main__":
     main()
