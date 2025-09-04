@@ -1,37 +1,63 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from enum import Enum
 from typing import List, Dict, Any, Optional
+from datetime import datetime
+
+class MilestoneStatus(Enum):
+    PENDING = "pending"
+    IN_PROGRESS = "in_progress" 
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+class QualityGateType(Enum):
+    CODE_REVIEW = "code_review"
+    TESTING = "testing"
+    DOCUMENTATION = "documentation"
+    SECURITY = "security"
+    PERFORMANCE = "performance"
 
 @dataclass
-class PlanTask:
-    """Represents a single task in a plan."""
-    description: str
-    expected_output: Optional[str] = None
-    dependencies: Optional[List[str]] = None
-    metadata: Optional[Dict[str, Any]] = None
-
-@dataclass
-class Plan:
-    """Represents a complete execution plan."""
+class QualityGate:
     name: str
-    description: str
-    tasks: List[PlanTask]
-    metadata: Optional[Dict[str, Any]] = None
-
-@dataclass
-class AgentConfig:
-    """Configuration for a CrewAI agent."""
-    role: str
-    goal: str
-    backstory: str = ""
-    tools: List[str] = None
-    verbose: bool = False
+    gate_type: QualityGateType
+    required: bool = True
+    crew_agent: str = ""
+    criteria: Dict[str, Any] = field(default_factory=dict)
     
     def __post_init__(self):
-        if self.tools is None:
-            self.tools = []
+        if not self.name.strip():
+            raise ValueError("Quality gate name cannot be empty")
 
 @dataclass
-class CrewConfig:
-    """Configuration for CrewAI orchestration."""
-    agents: List[AgentConfig]
-    verbose: bool = False
+class ValidationResult:
+    gate_name: str
+    passed: bool
+    score: float
+    feedback: str
+    details: Dict[str, Any] = field(default_factory=dict)
+    timestamp: datetime = field(default_factory=datetime.now)
+
+@dataclass
+class Milestone:
+    id: str
+    name: str
+    description: str
+    quality_gates: List[QualityGate]
+    status: MilestoneStatus = MilestoneStatus.PENDING
+    validation_results: List[ValidationResult] = field(default_factory=list)
+    created_at: datetime = field(default_factory=datetime.now)
+    completed_at: Optional[datetime] = None
+    
+    def __post_init__(self):
+        if not self.id.strip() or not self.name.strip():
+            raise ValueError("Milestone ID and name are required")
+        if not self.quality_gates:
+            raise ValueError("At least one quality gate is required")
+
+@dataclass
+class PRContext:
+    branch: str
+    files_changed: List[str]
+    diff: str
+    description: str
+    metadata: Dict[str, Any] = field(default_factory=dict)
