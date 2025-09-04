@@ -1,85 +1,52 @@
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Dict, List, Optional, Any
 from enum import Enum
+from typing import List, Dict, Optional, Set
 
-class MetricType(Enum):
-    COUNTER = "counter"
-    GAUGE = "gauge"
-    HISTOGRAM = "histogram"
+class RolloutStatus(Enum):
+    PENDING = "pending"
+    IN_PROGRESS = "in_progress" 
+    COMPLETED = "completed"
+    FAILED = "failed"
+    PAUSED = "paused"
 
-class LogLevel(Enum):
-    DEBUG = "debug"
-    INFO = "info"
-    WARN = "warn"
-    ERROR = "error"
+class RepositoryTier(Enum):
+    PILOT = "pilot"
+    CANARY = "canary"
+    PRODUCTION = "production"
 
 @dataclass
-class Metric:
+class Repository:
     name: str
-    value: float
-    metric_type: MetricType
-    timestamp: datetime
-    labels: Dict[str, str] = field(default_factory=dict)
+    tier: RepositoryTier
+    metadata: Dict[str, str] = field(default_factory=dict)
+    last_deployment: Optional[datetime] = None
+    health_score: float = 1.0  # 0.0 to 1.0
     
-    def __post_init__(self):
-        if not self.name:
-            raise ValueError("Metric name cannot be empty")
-        if self.value < 0 and self.metric_type == MetricType.COUNTER:
-            raise ValueError("Counter values cannot be negative")
+    def is_healthy(self, min_score: float = 0.8) -> bool:
+        return self.health_score >= min_score
 
 @dataclass
-class LogEntry:
-    message: str
-    level: LogLevel
-    timestamp: datetime
-    service: str
-    labels: Dict[str, str] = field(default_factory=dict)
+class Phase:
+    name: str
+    target_percentage: float
+    min_success_rate: float
+    wait_time_hours: int
+    required_tiers: Set[RepositoryTier] = field(default_factory=set)
+    max_failures: int = 0
     
     def __post_init__(self):
-        if not self.message:
-            raise ValueError("Log message cannot be empty")
-        if not self.service:
-            raise ValueError("Service name cannot be empty")
+        if not 0 <= self.target_percentage <= 100:
+            raise ValueError("target_percentage must be between 0 and 100")
+        if not 0 <= self.min_success_rate <= 1:
+            raise ValueError("min_success_rate must be between 0 and 1")
 
 @dataclass
-class TraceSpan:
-    trace_id: str
-    span_id: str
-    operation: str
-    start_time: datetime
-    duration_ms: float
-    service: str
-    status: str = "ok"
-    labels: Dict[str, str] = field(default_factory=dict)
-    
-    def __post_init__(self):
-        if not self.trace_id or not self.span_id:
-            raise ValueError("Trace ID and Span ID are required")
-        if self.duration_ms < 0:
-            raise ValueError("Duration cannot be negative")
-
-@dataclass
-class CostEntry:
-    resource_id: str
-    resource_type: str
-    service: str
-    cost: float
-    usage_amount: float
-    usage_unit: str
-    timestamp: datetime
-    labels: Dict[str, str] = field(default_factory=dict)
-    
-    def __post_init__(self):
-        if not self.resource_id or not self.resource_type:
-            raise ValueError("Resource ID and type are required")
-        if self.cost < 0 or self.usage_amount < 0:
-            raise ValueError("Cost and usage cannot be negative")
-
-@dataclass
-class Report:
-    title: str
-    report_type: str
-    data: Dict[str, Any]
-    generated_at: datetime
-    time_range: Dict[str, datetime]
+class RolloutState:
+    rollout_id: str
+    current_phase: int
+    status: RolloutStatus
+    deployed_repos: Set[str] = field(default_factory=set)
+    failed_repos: Set[str] = field(default_factory=set)
+    phase_start_time: Optional[datetime] = None
+    created_at: datetime = field(default_factory=datetime.now)
