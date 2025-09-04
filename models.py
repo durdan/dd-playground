@@ -1,26 +1,43 @@
-from pydantic import BaseModel
-from typing import List, Optional
+from dataclasses import dataclass
+from typing import List, Dict, Any, Optional
 from enum import Enum
 
-class ReviewType(str, Enum):
-    SECURITY = "security"
-    QUALITY = "quality"
-    PERFORMANCE = "performance"
+class ReviewStatus(Enum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    CHANGES_REQUESTED = "changes_requested"
+    COMMENTED = "commented"
 
-class Issue(BaseModel):
-    type: ReviewType
-    severity: str  # "low", "medium", "high", "critical"
-    line_number: Optional[int]
-    description: str
-    suggestion: str
+@dataclass
+class PRFile:
+    filename: str
+    additions: int
+    deletions: int
+    changes: int
+    patch: str
+    status: str
 
-class ReviewResult(BaseModel):
-    file_path: str
-    issues: List[Issue]
-    overall_score: int  # 1-10
+@dataclass
+class PullRequest:
+    number: int
+    title: str
+    body: str
+    author: str
+    base_branch: str
+    head_branch: str
+    files: List[PRFile]
+    repository: str
+    owner: str
+
+@dataclass
+class ReviewComment:
+    body: str
+    path: Optional[str] = None
+    line: Optional[int] = None
+
+@dataclass
+class ReviewResult:
+    status: ReviewStatus
     summary: str
-
-class CodeReviewRequest(BaseModel):
-    file_path: str
-    code_content: str
-    review_types: List[ReviewType] = [ReviewType.SECURITY, ReviewType.QUALITY, ReviewType.PERFORMANCE]
+    comments: List[ReviewComment]
+    auto_merge: bool = False
