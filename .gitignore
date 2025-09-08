@@ -1,76 +1,30 @@
 # Node.js
 node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Next.js
-.next/
-out/
-build/
-
-# Environment variables
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-
-# Logs
-logs
 *.log
 
-# Runtime data
-pids
-*.pid
-*.seed
-*.pid.lock
+# Python
+__pycache__/
+*.py[cod]
+*.pyc
 
-# Coverage directory used by tools like istanbul
-coverage/
-*.lcov
+# Environment variables
+.env*
 
-# Dependency directories
-node_modules/
-jspm_packages/
+# IDEs
+.idea/
+.vscode/
 
-# Optional npm cache directory
-.npm
+# Operating Systems
+.DS_Store
+Thumbs.db
 
-# Optional eslint cache
-.eslintcache
+# Package Lock files
+package-lock.json
+yarn.lock
 
-# Optional REPL history
-.node_repl_history
+# Dist
+/dist/
 
-# Output of 'npm pack'
-*.tgz
-
-# Yarn Integrity file
-.yarn-integrity
-
-# parcel-bundler cache (https://parceljs.org/)
-.cache
-.parcel-cache
-
-# TypeScript cache
-*.tsbuildinfo
-
-# Temporary folders
-tmp/
-temp/
+# Others
+.nuxt
+*.sw*
