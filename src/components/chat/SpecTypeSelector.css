@@ -1,0 +1,46 @@
+.spec-type-selector {
+  margin-bottom: 1rem;
+}
+
+.spec-type-selector__label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #333;
+  margin-bottom: 0.5rem;
+}
+
+.spec-type-selector__select {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #ced4da;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  background-color: white;
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.spec-type-selector__select:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 0.125rem rgba(0, 123, 255, 0.25);
+}
+
+.spec-type-selector__select:disabled {
+  background-color: #f8f9fa;
+  color: #6c757d;
+  cursor: not-allowed;
+}
+
+.spec-type-selector__description {
+  font-size: 0.75rem;
+  color: #6c757d;
+  margin-top: 0.25rem;
+  min-height: 1rem;
+}
+
+@media (max-width: 768px) {
+  .spec-type-selector__select {
+    font-size: 1rem; /* Prevent zoom on iOS */
+  }
+}
