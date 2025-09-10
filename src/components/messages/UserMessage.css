@@ -1,0 +1,25 @@
+.user-message {
+  color: #1976d2;
+}
+
+.user-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+  gap: 8px;
+}
+
+.user-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+}
+
+.user-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.user-content {
+  line-height: 1.4;
+}
