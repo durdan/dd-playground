@@ -1,0 +1,23 @@
+.message-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.message-list__content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.message-list__loading {
+  display: flex;
+  justify-content: center;
+  padding: 8px;
+}
+
+.loading-indicator {
+  color: #666;
+  font-style: italic;
+  font-size: 14px;
+}
