@@ -1,87 +1,120 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { ChatStateProvider } from './ChatStateContext';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
-import { chatService } from './ChatService';
-import { chatStore } from './ChatStore';
-import { ChatState, ChatMessage } from './types';
-import './ChatContainer.css';
+import { SpecificationPanel } from './SpecificationPanel';
+import { ProjectSelector } from './ProjectSelector';
+import { useChatWebSocket } from '../hooks/useChatWebSocket';
+import { useSpecificationSync } from '../hooks/useSpecificationSync';
+import { ChatMessage, Project, Specification } from '../types';
 
-export const ChatContainer: React.FC = () => {
-  const [state, setState] = useState<ChatState>(chatStore.getState());
+interface ChatContainerProps {
+  initialProject?: Project;
+  onSpecificationUpdate?: (spec: Specification) => void;
+}
+
+export const ChatContainer: React.FC<ChatContainerProps> = ({
+  initialProject,
+  onSpecificationUpdate
+}) => {
+  const [selectedProject, setSelectedProject] = useState<Project | null>(initialProject || null);
+  const [isSpecPanelOpen, setIsSpecPanelOpen] = useState(true);
+
+  const {
+    messages,
+    isConnected,
+    sendMessage,
+    clearChat,
+    isTyping
+  } = useChatWebSocket(selectedProject?.id);
+
+  const {
+    currentSpecification,
+    updateSpecification,
+    syncStatus
+  } = useSpecificationSync(selectedProject?.id);
+
+  const handleProjectChange = useCallback((project: Project) => {
+    setSelectedProject(project);
+    clearChat();
+  }, [clearChat]);
+
+  const handleMessageSend = useCallback((content: string, attachments?: File[]) => {
+    if (!selectedProject) {
+      throw new Error('No project selected');
+    }
+    
+    sendMessage({
+      content,
+      attachments,
+      projectId: selectedProject.id,
+      timestamp: new Date()
+    });
+  }, [selectedProject, sendMessage]);
 
   useEffect(() => {
-    const unsubscribe = chatStore.subscribe(setState);
-    
-    // Load initial messages
-    loadMessages();
-    
-    return unsubscribe;
-  }, []);
-
-  const loadMessages = async (): Promise<void> => {
-    try {
-      chatStore.setLoading(true);
-      chatStore.setError(null);
-      const messages = await chatService.getMessages();
-      messages.forEach(message => chatStore.addMessage(message));
-    } catch (error) {
-      chatStore.setError(error instanceof Error ? error.message : 'Failed to load messages');
-    } finally {
-      chatStore.setLoading(false);
+    if (currentSpecification && onSpecificationUpdate) {
+      onSpecificationUpdate(currentSpecification);
     }
-  };
+  }, [currentSpecification, onSpecificationUpdate]);
 
-  const handleSendMessage = async (content: string): Promise<void> => {
-    // Add user message immediately
-    const userMessage: ChatMessage = {
-      id: `user-${Date.now()}`,
-      content,
-      timestamp: new Date(),
-      sender: 'user',
-      status: 'sending',
-    };
-    
-    chatStore.addMessage(userMessage);
-    chatStore.setLoading(true);
-    chatStore.setError(null);
-
-    try {
-      // Send message and get response
-      const response = await chatService.sendMessage(content);
-      
-      // Update user message status
-      chatStore.updateMessage(userMessage.id, { status: 'sent' });
-      
-      // Add assistant response
-      chatStore.addMessage(response);
-    } catch (error) {
-      chatStore.updateMessage(userMessage.id, { status: 'error' });
-      chatStore.setError(error instanceof Error ? error.message : 'Failed to send message');
-    } finally {
-      chatStore.setLoading(false);
-    }
-  };
+  if (!selectedProject) {
+    return (
+      <div className="chat-container-empty">
+        <ProjectSelector onProjectSelect={setSelectedProject} />
+      </div>
+    );
+  }
 
   return (
-    <div className="chat-container">
-      <div className="chat-container__header">
-        <h2>Chat Assistant</h2>
-        {state.error && (
-          <div className="chat-container__error">
-            {state.error}
+    <ChatStateProvider
+      projectId={selectedProject.id}
+      initialMessages={messages}
+      specification={currentSpecification}
+    >
+      <div className="chat-container">
+        <div className="chat-header">
+          <ProjectSelector
+            selectedProject={selectedProject}
+            onProjectSelect={handleProjectChange}
+          />
+          <div className="chat-controls">
+            <button
+              onClick={() => setIsSpecPanelOpen(!isSpecPanelOpen)}
+              className="toggle-spec-panel"
+            >
+              {isSpecPanelOpen ? 'Hide' : 'Show'} Specification
+            </button>
+            <div className={`connection-status ${isConnected ? 'connected' : 'disconnected'}`}>
+              {isConnected ? '🟢' : '🔴'}
+            </div>
           </div>
-        )}
+        </div>
+
+        <div className="chat-body">
+          <div className="chat-main">
+            <MessageList
+              messages={messages}
+              isTyping={isTyping}
+              onSpecificationUpdate={updateSpecification}
+            />
+            <MessageInput
+              onSendMessage={handleMessageSend}
+              disabled={!isConnected}
+              placeholder={`Describe your ${selectedProject.name} requirements...`}
+            />
+          </div>
+
+          {isSpecPanelOpen && (
+            <SpecificationPanel
+              specification={currentSpecification}
+              syncStatus={syncStatus}
+              onSpecificationChange={updateSpecification}
+              projectId={selectedProject.id}
+            />
+          )}
+        </div>
       </div>
-      
-      <MessageList 
-        messages={state.messages} 
-        isLoading={state.isLoading} 
-      />
-      
-      <MessageInput 
-        onSendMessage={handleSendMessage}
-        disabled={state.isLoading}
-      />
-    </div>
+    </ChatStateProvider>
   );
 };
