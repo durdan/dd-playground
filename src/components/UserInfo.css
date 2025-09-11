@@ -1,0 +1,74 @@
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  max-width: 400px;
+}
+
+.user-avatar img {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.default-avatar {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background-color: #007bff;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 1.2rem;
+}
+
+.user-details {
+  flex: 1;
+}
+
+.user-details h2 {
+  margin: 0 0 0.25rem 0;
+  font-size: 1.1rem;
+}
+
+.user-details p {
+  margin: 0;
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.user-role {
+  background-color: #e9ecef;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  color: #495057;
+}
+
+.logout-button {
+  background-color: #dc3545;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.logout-button:hover {
+  background-color: #c82333;
+}
+
+.error {
+  color: #dc3545;
+  padding: 1rem;
+  border: 1px solid #dc3545;
+  border-radius: 4px;
+  background-color: #f8d7da;
+}
